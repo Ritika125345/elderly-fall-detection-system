@@ -1,15 +1,98 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Activity, AlertTriangle, Bell, Check, CheckCircle2, Clock3, Database, HeartPulse, Home, LifeBuoy, Radio, RefreshCw, Settings, ShieldCheck, Smartphone, Wifi, WifiOff, X, History, UserRound, Menu } from 'lucide-react';
-import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import {
+  Activity,
+  AlertTriangle,
+  Bell,
+  CheckCircle2,
+  Clock3,
+  Database,
+  HeartPulse,
+  Home,
+  LifeBuoy,
+  Radio,
+  RefreshCw,
+  Settings,
+  ShieldCheck,
+  Smartphone,
+  Wifi,
+  WifiOff,
+  X,
+  History,
+  UserRound,
+  Menu,
+} from 'lucide-react';
+import {
+  Area,
+  AreaChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts';
 import './styles.css';
 
-type Reading = { id: string; device_id: string; ax: number | null; ay: number | null; az: number | null; gx: number | null; gy: number | null; gz: number | null; source: 'device' | 'test'; occurred_at: string };
-type AlertItem = { id: string; device_id: string; type: string; source: 'device' | 'test'; status: 'active' | 'acknowledged' | 'resolved'; message: string | null; occurred_at: string; resolved_at?: string | null };
-type Status = { api?: string; supabaseConfigured: boolean; mqttConfigured: boolean; mqttConnected: boolean; lastMessageAt: string | null; deviceOnline: boolean; deviceId?: string; offlineAfterSeconds?: number };
-const API = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000').replace(/\/$/, '');
-const navItems = [{ label: 'Dashboard', icon: Home }, { label: 'Alerts', icon: Bell }, { label: 'Live Monitoring', icon: Activity }, { label: 'Activity History', icon: History }, { label: 'Settings', icon: Settings }];
-const time = (value?: string | null) => value ? new Date(value).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) : 'No message received yet';
-const shortTime = (value: string) => new Date(value).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+type Reading = {
+  id: string;
+  device_id: string;
+  ax: number | null;
+  ay: number | null;
+  az: number | null;
+  gx: number | null;
+  gy: number | null;
+  gz: number | null;
+  source: 'device' | 'test';
+  occurred_at: string;
+};
+
+type AlertItem = {
+  id: string;
+  device_id: string;
+  type: string;
+  source: 'device' | 'test';
+  status: 'active' | 'acknowledged' | 'resolved';
+  message: string | null;
+  occurred_at: string;
+  resolved_at?: string | null;
+};
+
+type Status = {
+  api?: string;
+  supabaseConfigured: boolean;
+  mqttConfigured: boolean;
+  mqttConnected: boolean;
+  lastMessageAt: string | null;
+  deviceOnline: boolean;
+  deviceId?: string;
+  offlineAfterSeconds?: number;
+};
+
+const API = (
+  import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000'
+).replace(/\/$/, '');
+
+const navItems = [
+  { label: 'Dashboard', icon: Home },
+  { label: 'Alerts', icon: Bell },
+  { label: 'Live Monitoring', icon: Activity },
+  { label: 'Activity History', icon: History },
+  { label: 'Settings', icon: Settings },
+];
+
+const time = (value?: string | null) =>
+  value
+    ? new Date(value).toLocaleString([], {
+      dateStyle: 'medium',
+      timeStyle: 'short',
+    })
+    : 'No message received yet';
+
+const shortTime = (value: string) =>
+  new Date(value).toLocaleTimeString([], {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  });
 
 export default function App() {
   const [page, setPage] = useState('Dashboard');
@@ -27,69 +110,1231 @@ export default function App() {
 
   const refresh = useCallback(async (showLoading = false) => {
     if (showLoading) setLoading(true);
+
     try {
-      const [s, r, a] = await Promise.all([fetch(`${API}/api/status`), fetch(`${API}/api/readings?limit=50`), fetch(`${API}/api/alerts`)]);
+      const [s, r, a] = await Promise.all([
+        fetch(`${API}/api/status`),
+        fetch(`${API}/api/readings?limit=50`),
+        fetch(`${API}/api/alerts`),
+      ]);
+
       const sj = await s.json();
-      if (!s.ok) throw new Error(sj.error || 'Backend status unavailable');
+
+      if (!s.ok) {
+        throw new Error(sj.error || 'Backend status unavailable');
+      }
+
       setStatus(sj);
-      if (r.ok) setReadings((await r.json()).data || []); else setReadings([]);
-      if (a.ok) setAlerts((await a.json()).data || []); else setAlerts([]);
+
+      if (r.ok) {
+        setReadings((await r.json()).data || []);
+      } else {
+        setReadings([]);
+      }
+
+      if (a.ok) {
+        setAlerts((await a.json()).data || []);
+      } else {
+        setAlerts([]);
+      }
+
       setError('');
-    } catch (e) { setError(e instanceof Error ? e.message : 'Could not connect to the backend'); setStatus(null); }
-    finally { setLoading(false); }
+    } catch (e) {
+      setError(
+        e instanceof Error
+          ? e.message
+          : 'Could not connect to the backend',
+      );
+      setStatus(null);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  useEffect(() => { void refresh(true); const timer = window.setInterval(() => void refresh(), 5000); return () => window.clearInterval(timer); }, [refresh]);
+  useEffect(() => {
+    void refresh(true);
+
+    const timer = window.setInterval(() => void refresh(), 5000);
+
+    return () => window.clearInterval(timer);
+  }, [refresh]);
+
   useEffect(() => {
     const stream = new EventSource(`${API}/api/stream`);
     const onUpdate = () => void refresh();
-    ['reading', 'alert', 'status'].forEach((name) => stream.addEventListener(name, onUpdate));
-    stream.onerror = () => { /* polling remains the fallback if the event stream disconnects */ };
+
+    ['reading', 'alert', 'status'].forEach((name) =>
+      stream.addEventListener(name, onUpdate),
+    );
+
+    stream.onerror = () => {
+      // Polling remains the fallback if the event stream disconnects.
+    };
+
     return () => stream.close();
   }, [refresh]);
-  useEffect(() => { if (!toast) return; const timer = window.setTimeout(() => setToast(''), 3500); return () => window.clearTimeout(timer); }, [toast]);
 
-  const activeAlerts = alerts.filter(a => a.status !== 'resolved');
+  useEffect(() => {
+    if (!toast) return;
+
+    const timer = window.setTimeout(() => setToast(''), 3500);
+
+    return () => window.clearTimeout(timer);
+  }, [toast]);
+
+  const activeAlerts = alerts.filter((a) => a.status !== 'resolved');
   const latestReading = readings[readings.length - 1];
-  const chartData = useMemo(() => readings.map(r => ({ time: shortTime(r.occurred_at), acceleration: r.ax != null && r.ay != null && r.az != null ? Math.sqrt(r.ax ** 2 + r.ay ** 2 + r.az ** 2) : null, gx: r.gx, gy: r.gy, gz: r.gz, source: r.source })), [readings]);
-  const filteredAlerts = alerts.filter(a => filter === 'all' || (filter === 'active' ? a.status !== 'resolved' : a.type === filter));
 
-  async function updateAlert(id: string, nextStatus: 'acknowledged' | 'resolved') {
+  const chartData = useMemo(
+    () =>
+      readings.map((r) => ({
+        time: shortTime(r.occurred_at),
+        acceleration:
+          r.ax != null && r.ay != null && r.az != null
+            ? Math.sqrt(r.ax ** 2 + r.ay ** 2 + r.az ** 2)
+            : null,
+        gx: r.gx,
+        gy: r.gy,
+        gz: r.gz,
+        source: r.source,
+      })),
+    [readings],
+  );
+
+  const filteredAlerts = alerts.filter(
+    (a) =>
+      filter === 'all' ||
+      (filter === 'active'
+        ? a.status !== 'resolved'
+        : a.type === filter),
+  );
+
+  async function updateAlert(
+    id: string,
+    nextStatus: 'acknowledged' | 'resolved',
+  ) {
     setBusy(id);
+
     try {
-      const response = await fetch(`${API}/api/alerts/${encodeURIComponent(id)}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: nextStatus }) });
-      const body = await response.json(); if (!response.ok) throw new Error(body.error || 'Could not update alert');
-      setToast(nextStatus === 'resolved' ? 'Alert marked resolved.' : 'Alert acknowledged.'); setConfirmResolve(null); await refresh();
-    } catch (e) { setToast(e instanceof Error ? e.message : 'Action failed'); } finally { setBusy(null); }
+      const response = await fetch(
+        `${API}/api/alerts/${encodeURIComponent(id)}`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: nextStatus }),
+        },
+      );
+
+      const body = await response.json();
+
+      if (!response.ok) {
+        throw new Error(body.error || 'Could not update alert');
+      }
+
+      setToast(
+        nextStatus === 'resolved'
+          ? 'Alert marked resolved.'
+          : 'Alert acknowledged.',
+      );
+
+      setConfirmResolve(null);
+      await refresh();
+    } catch (e) {
+      setToast(e instanceof Error ? e.message : 'Action failed');
+    } finally {
+      setBusy(null);
+    }
   }
+
   async function requestAction(action: 'check-in' | 'help') {
     setBusy(action);
+
     try {
-      const response = await fetch(`${API}/api/${action}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ device_id: status?.deviceId }) });
-      const body = await response.json(); if (!response.ok) throw new Error(body.error || 'Action could not be saved');
-      setToast(action === 'help' ? 'Help request saved to the system.' : 'Check-in saved to the system.'); await refresh();
-    } catch (e) { setToast(e instanceof Error ? e.message : 'Action failed'); } finally { setBusy(null); }
+      const response = await fetch(`${API}/api/${action}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ device_id: status?.deviceId }),
+      });
+
+      const body = await response.json();
+
+      if (!response.ok) {
+        throw new Error(body.error || 'Action could not be saved');
+      }
+
+      setToast(
+        action === 'help'
+          ? 'Help request saved to the system.'
+          : 'Check-in saved to the system.',
+      );
+
+      await refresh();
+    } catch (e) {
+      setToast(e instanceof Error ? e.message : 'Action failed');
+    } finally {
+      setBusy(null);
+    }
   }
 
-  if (elderlyView) return <main className="elderly-screen"><div className="elderly-top"><div className="brand-mark"><HeartPulse size={25}/></div><div><b>CareWatch</b><span>Personal safety companion</span></div><span className="live-pill">{status?.deviceOnline ? 'DEVICE ONLINE' : 'DEVICE OFFLINE'}</span></div><section className="elderly-content"><div className="elderly-icon"><ShieldCheck size={48}/></div><p className="eyebrow">CURRENT DEVICE STATUS</p><h1>{status?.deviceOnline ? 'Device is communicating' : 'Device is not connected'}</h1><p className="elderly-sub">{status?.deviceOnline ? 'The backend has received a recent message from the configured device.' : 'Your check-in can be recorded in the backend, but it will not contact a guardian unless notifications are configured.'}</p><div className="elderly-status"><span className={`status-dot ${status?.deviceOnline ? 'green' : 'red'}`}/> System status: {status?.deviceOnline ? 'Online' : 'Offline'}</div><button className="big-button okay-button" disabled={busy !== null} onClick={() => void requestAction('check-in')}><CheckCircle2/> I’m OK</button><button className="big-button help-button" disabled={busy !== null} onClick={() => void requestAction('help')}><LifeBuoy/> Request Help</button><button className="text-button" onClick={() => setElderlyView(false)}>Return to guardian dashboard</button><p className="demo-note">These actions are recorded by the backend when configured. No SMS, phone call, or emergency service is implied.</p></section></main>;
+  if (elderlyView) {
+    return (
+      <main className="elderly-screen">
+        <div className="elderly-top">
+          <div className="brand-mark">
+            <HeartPulse size={25} />
+          </div>
 
-  return <div className="app-shell"><aside className={`sidebar ${mobileNav ? 'sidebar-open' : ''}`}><div className="brand"><div className="brand-mark"><HeartPulse size={23}/></div><div><strong>CareWatch</strong><span>SAFETY MONITOR</span></div><button className="mobile-close" onClick={() => setMobileNav(false)} aria-label="Close navigation"><X/></button></div><div className="nav-caption">WORKSPACE</div><nav>{navItems.map(item => { const Icon = item.icon; return <button key={item.label} className={`nav-link ${page === item.label ? 'selected' : ''}`} onClick={() => { setPage(item.label); setMobileNav(false); }}><Icon size={18}/><span>{item.label}</span>{item.label === 'Alerts' && activeAlerts.length > 0 && <b className="nav-count">{activeAlerts.length}</b>}</button>; })}</nav><div className="sidebar-bottom"><div className="device-mini"><div className="device-icon"><Radio size={18}/></div><div><b>{status?.deviceId || 'ESP32 device'}</b><span><i className={`status-dot ${status?.deviceOnline ? 'green' : 'red'}`}/>{status?.deviceOnline ? 'Device online' : 'Device offline'}</span></div></div><div className="sidebar-foot"><span className="avatar">GW</span><div><b>Guardian view</b><span>Local development</span></div></div></div></aside>
-    <main className="main-area"><header className="topbar"><div className="topbar-left"><button className="mobile-menu" onClick={() => setMobileNav(true)} aria-label="Open navigation"><Menu/></button><div><div className="breadcrumb">Workspace <span>/</span> <b>{page}</b></div><h1>{page === 'Dashboard' ? 'Safety overview' : page}</h1></div></div><div className="top-actions"><span className={`live-pill ${status?.deviceOnline ? 'live' : ''}`}><span className={`status-dot ${status?.deviceOnline ? 'green' : 'red'}`}/>{status?.deviceOnline ? 'DEVICE ONLINE' : 'DEVICE OFFLINE'}</span><button className="icon-button" aria-label="Open alerts" onClick={() => setPage('Alerts')}><Bell size={18}/>{activeAlerts.length > 0 && <i/>}</button><button className="secondary-button elderly-shortcut" onClick={() => setElderlyView(true)}><UserRound size={16}/> Elderly view</button></div></header>
-    <div className="page-content">{error && <div className="error-banner"><WifiOff size={19}/><div><b>Backend connection unavailable</b><p>{error}. Start the Node.js server and check its environment configuration. Live values are not being fabricated.</p></div><button className="secondary-button" onClick={() => void refresh(true)}><RefreshCw size={15}/> Retry</button></div>}
-      {page === 'Dashboard' && <><div className="welcome-row"><p className="muted">Live system state from your backend, database, and configured device.</p><button className="secondary-button" onClick={() => void refresh(true)}><RefreshCw size={15}/> Refresh</button></div><div className="status-banner"><div className="banner-icon"><Database size={19}/></div><div><b>{status?.supabaseConfigured ? 'Database configuration detected' : 'Database setup required'}</b><p>{status?.supabaseConfigured ? 'The backend has Supabase credentials configured. Connection and query health are reflected by API responses.' : 'Add your Supabase URL and service-role key to server/.env. Until then, database-backed readings and alerts cannot load.'}</p></div><span className="banner-tag">REAL DATA ONLY</span></div><section className="stats-grid"><Stat icon={<Wifi size={18}/>} label="Device connection" value={loading ? 'Checking…' : status?.deviceOnline ? 'Online' : 'Offline'} foot={status?.lastMessageAt ? `Last message: ${time(status.lastMessageAt)}` : 'No device message received'} tone={status?.deviceOnline ? 'green' : 'orange'}/><Stat icon={<ShieldCheck size={18}/>} label="Safety events" value={activeAlerts.length.toString().padStart(2,'0')} foot={`${alerts.length} total events stored`} tone={activeAlerts.length ? 'orange' : 'green'}/><Stat icon={<Activity size={18}/>} label="Stored readings" value={readings.length.toString()} foot={latestReading ? `Latest: ${time(latestReading.occurred_at)}` : 'No sensor readings in database'} tone="blue"/><Stat icon={<Radio size={18}/>} label="MQTT broker" value={status?.mqttConnected ? 'Connected' : 'Disconnected'} foot={status?.mqttConfigured ? 'Configured on backend' : 'MQTT_URL not configured'} tone={status?.mqttConnected ? 'green' : 'orange'}/></section><div className="section-heading"><div><h2>Motion readings</h2><p>Sensor values retrieved from the backend API and database</p></div><span className="sample-label"><span className={`status-dot ${latestReading ? 'green' : 'red'}`}/>{latestReading ? (latestReading.source === 'test' ? 'Test message' : 'Database data') : 'No data yet'}</span></div><section className="content-grid"><article className="panel chart-panel"><div className="panel-head"><div><h3>Acceleration magnitude</h3><p>Calculated from ax, ay, az · g if firmware reports g units</p></div><span className="live-pill">{readings.length} points</span></div>{chartData.some(d => d.acceleration !== null) ? <div className="chart-wrap"><ResponsiveContainer width="100%" height="100%"><AreaChart data={chartData} margin={{top:12,right:8,left:-18,bottom:0}}><defs><linearGradient id="motionFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#239b8e" stopOpacity={0.23}/><stop offset="95%" stopColor="#239b8e" stopOpacity={0.015}/></linearGradient></defs><CartesianGrid strokeDasharray="3 5" vertical={false} stroke="#e8eef0"/><XAxis dataKey="time" tickLine={false} axisLine={false} minTickGap={24}/><YAxis tickLine={false} axisLine={false}/><Tooltip/><Area dataKey="acceleration" name="Acceleration magnitude" stroke="#239b8e" fill="url(#motionFill)" strokeWidth={2.5} connectNulls={false}/></AreaChart></ResponsiveContainer></div> : <Empty text="No acceleration readings have been received. When the backend stores MPU6050 values, the chart will populate automatically."/>}</article><article className="panel alerts-panel"><div className="panel-head"><div><h3>Active alerts</h3><p>Events received from the backend</p></div><button className="text-link" onClick={() => setPage('Alerts')}>View all</button></div>{activeAlerts.length ? <EventList events={activeAlerts.slice(0,4)} onAcknowledge={id => void updateAlert(id,'acknowledged')} onResolve={setConfirmResolve} busy={busy}/> : <Empty text="No active alerts stored in the database."/>}</article></section><section className="panel recent-panel"><div className="panel-head"><div><h3>Latest sensor message</h3><p>Most recent row returned from Supabase</p></div><button className="text-link" onClick={() => setPage('Live Monitoring')}>View monitoring</button></div>{latestReading ? <ReadingDetails reading={latestReading}/> : <Empty text="Waiting for a real device message. No placeholder readings are shown."/>}</section></>}
-      {page === 'Alerts' && <><div className="page-intro"><p>Acknowledge or resolve stored events. Only events received by the backend appear here.</p><button className="secondary-button" onClick={() => void refresh(true)}><RefreshCw size={15}/> Refresh events</button></div><div className="filter-row"><span>{filteredAlerts.length} events</span><select value={filter} onChange={e => setFilter(e.target.value)}><option value="all">All events</option><option value="active">Unresolved only</option><option value="possible_fall">Possible fall</option><option value="manual_help">Manual help</option><option value="check_in">Check-in</option></select></div><section className="panel"><EventList events={filteredAlerts} onAcknowledge={id => void updateAlert(id,'acknowledged')} onResolve={setConfirmResolve} busy={busy}/>{!filteredAlerts.length && <Empty text="No matching events exist in the database."/>}</section></>}
-      {page === 'Live Monitoring' && <><div className="page-intro"><p>Live sensor stream is updated from the backend event stream and periodic API polling.</p><span className={`live-pill ${status?.mqttConnected ? 'live' : ''}`}>{status?.mqttConnected ? 'MQTT CONNECTED' : 'MQTT DISCONNECTED'}</span></div><section className="panel chart-panel full-chart"><div className="panel-head"><div><h3>Acceleration magnitude</h3><p>Calculated from real stored sensor axes</p></div><span className="sample-label">{chartData.length} readings</span></div>{chartData.some(d => d.acceleration !== null) ? <div className="large-chart"><ResponsiveContainer width="100%" height="100%"><AreaChart data={chartData}><CartesianGrid strokeDasharray="3 5" vertical={false}/><XAxis dataKey="time" tickLine={false} axisLine={false}/><YAxis tickLine={false} axisLine={false}/><Tooltip/><Area dataKey="acceleration" stroke="#239b8e" fill="#239b8e22" strokeWidth={2.5} connectNulls={false}/></AreaChart></ResponsiveContainer></div> : <Empty text="No readings yet. Publish a real sensor payload to the configured MQTT topic after the backend and database are configured."/>}</section><div className="stats-grid two-stats"><ReadingStat label="Acceleration axes" values={latestReading ? [latestReading.ax,latestReading.ay,latestReading.az] : null} unit="sensor units"/><ReadingStat label="Gyroscope axes" values={latestReading ? [latestReading.gx,latestReading.gy,latestReading.gz] : null} unit="sensor units"/></div><section className="panel"><div className="panel-head"><div><h3>Recent readings</h3><p>Latest database rows</p></div></div><div className="table-wrap"><table><thead><tr><th>Timestamp</th><th>Device</th><th>ax</th><th>ay</th><th>az</th><th>Source</th></tr></thead><tbody>{[...readings].reverse().slice(0,10).map(r=><tr key={r.id}><td>{time(r.occurred_at)}</td><td>{r.device_id}</td><td>{r.ax ?? '—'}</td><td>{r.ay ?? '—'}</td><td>{r.az ?? '—'}</td><td><span className={`source-tag ${r.source}`}>{r.source}</span></td></tr>)}</tbody></table>{!readings.length && <Empty text="No readings have been stored yet."/>}</div></section></>}
-      {page === 'Activity History' && <><div className="page-intro"><p>Chronological history of events persisted by the backend.</p><button className="secondary-button" onClick={() => void refresh(true)}><RefreshCw size={15}/> Refresh history</button></div><section className="panel"><EventList events={alerts} onAcknowledge={id => void updateAlert(id,'acknowledged')} onResolve={setConfirmResolve} busy={busy}/>{!alerts.length && <Empty text="No events have been recorded yet."/>}</section></>}
-      {page === 'Settings' && <><div className="page-intro"><p>Backend configuration status. Secrets are intentionally not displayed in the browser.</p></div><section className="settings-grid"><article className="panel settings-card"><div className="settings-heading"><span className="settings-icon"><Smartphone/></span><div><h3>Device connection</h3><p>Configured by backend environment variables</p></div></div><Setting label="Device ID" value={status?.deviceId || 'Not available'}/><Setting label="MQTT topic" value="elderly/fall/test"/><Setting label="MQTT connection" value={status?.mqttConnected ? 'Connected' : 'Disconnected'}/><Setting label="Last device message" value={time(status?.lastMessageAt)}/><Setting label="Offline threshold" value={`${status?.offlineAfterSeconds ?? 45} seconds`}/></article><article className="panel settings-card"><div className="settings-heading"><span className="settings-icon"><Database/></span><div><h3>Backend services</h3><p>Health and integration readiness</p></div></div><Setting label="Node.js API" value={error ? 'Unavailable' : 'Reachable'}/><Setting label="Supabase credentials" value={status?.supabaseConfigured ? 'Configured' : 'Missing'}/><Setting label="Sensor data mode" value="Real backend data only"/><div className="settings-note"><AlertTriangle size={16}/><span>Guardian notifications, SMS, phone calls, and emergency service integrations are not implemented. Alert status updates are database actions only.</span></div><button className="primary-button" onClick={() => void refresh(true)}><RefreshCw size={15}/> Check connection</button></article></section></>}
-      <footer className="page-footer"><span>CareWatch · Elderly Fall Detection & Emergency Response System</span><span><ShieldCheck size={14}/> Educational prototype · Not medically validated</span></footer>
-    </div></main>
-    {toast && <div className="toast"><CheckCircle2 size={18}/>{toast}<button onClick={() => setToast('')} aria-label="Dismiss notification"><X size={15}/></button></div>}
-    {confirmResolve && <div className="modal-backdrop"><div className="confirm-modal" role="dialog" aria-modal="true"><div className="modal-icon"><AlertTriangle size={23}/></div><h2>Resolve this alert?</h2><p>This updates the stored alert status. It does not confirm the person's real-world safety.</p><div className="modal-actions"><button className="secondary-button" onClick={() => setConfirmResolve(null)}>Cancel</button><button className="primary-button" disabled={busy === confirmResolve} onClick={() => void updateAlert(confirmResolve,'resolved')}>Confirm resolution</button></div></div></div>}
-  </div>;
+          <div>
+            <b>CareWatch</b>
+            <span>Personal safety companion</span>
+          </div>
+
+          <span className="live-pill">
+            {status?.deviceOnline ? 'DEVICE ONLINE' : 'DEVICE OFFLINE'}
+          </span>
+        </div>
+
+        <section className="elderly-content">
+          <div className="elderly-icon">
+            <ShieldCheck size={48} />
+          </div>
+
+          <p className="eyebrow">CURRENT DEVICE STATUS</p>
+
+          <h1>
+            {status?.deviceOnline
+              ? 'Device is communicating'
+              : 'Device is not connected'}
+          </h1>
+
+          <p className="elderly-sub">
+            {status?.deviceOnline
+              ? 'The backend has received a recent message from the configured device.'
+              : 'Your check-in can be recorded in the backend, but it will not contact a guardian unless notifications are configured.'}
+          </p>
+
+          <div className="elderly-status">
+            <span
+              className={`status-dot ${status?.deviceOnline ? 'green' : 'red'
+                }`}
+            />
+            System status: {status?.deviceOnline ? 'Online' : 'Offline'}
+          </div>
+
+          <button
+            className="big-button okay-button"
+            disabled={busy !== null}
+            onClick={() => void requestAction('check-in')}
+          >
+            <CheckCircle2 /> I’m OK
+          </button>
+
+          <button
+            className="big-button help-button"
+            disabled={busy !== null}
+            onClick={() => void requestAction('help')}
+          >
+            <LifeBuoy /> Request Help
+          </button>
+
+          <button
+            className="text-button"
+            onClick={() => setElderlyView(false)}
+          >
+            Return to guardian dashboard
+          </button>
+
+          <p className="demo-note">
+            These actions are recorded by the backend when configured. No SMS,
+            phone call, or emergency service is implied.
+          </p>
+        </section>
+      </main>
+    );
+  }
+
+  return (
+    <div className="app-shell">
+      <aside className={`sidebar ${mobileNav ? 'sidebar-open' : ''}`}>
+        <div className="brand">
+          <div className="brand-mark">
+            <HeartPulse size={23} />
+          </div>
+
+          <div>
+            <strong>CareWatch</strong>
+            <span>SAFETY MONITOR</span>
+          </div>
+
+          <button
+            className="mobile-close"
+            onClick={() => setMobileNav(false)}
+            aria-label="Close navigation"
+          >
+            <X />
+          </button>
+        </div>
+
+        <div className="nav-caption">WORKSPACE</div>
+
+        <nav>
+          {navItems.map((item) => {
+            const Icon = item.icon;
+
+            return (
+              <button
+                key={item.label}
+                className={`nav-link ${page === item.label ? 'selected' : ''
+                  }`}
+                onClick={() => {
+                  setPage(item.label);
+                  setMobileNav(false);
+                }}
+              >
+                <Icon size={18} />
+                <span>{item.label}</span>
+
+                {item.label === 'Alerts' && activeAlerts.length > 0 && (
+                  <b className="nav-count">{activeAlerts.length}</b>
+                )}
+              </button>
+            );
+          })}
+        </nav>
+
+        <div className="sidebar-bottom">
+          <div className="device-mini">
+            <div className="device-icon">
+              <Radio size={18} />
+            </div>
+
+            <div>
+              <b>{status?.deviceId || 'ESP32 device'}</b>
+              <span>
+                <i
+                  className={`status-dot ${status?.deviceOnline ? 'green' : 'red'
+                    }`}
+                />
+                {status?.deviceOnline ? 'Device online' : 'Device offline'}
+              </span>
+            </div>
+          </div>
+
+          <div className="sidebar-foot">
+            <span className="avatar">GW</span>
+            <div>
+              <b>Guardian view</b>
+              <span>Local development</span>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <main className="main-area">
+        <header className="topbar">
+          <div className="topbar-left">
+            <button
+              className="mobile-menu"
+              onClick={() => setMobileNav(true)}
+              aria-label="Open navigation"
+            >
+              <Menu />
+            </button>
+
+            <div>
+              <div className="breadcrumb">
+                Workspace <span>/</span> <b>{page}</b>
+              </div>
+
+              <h1>{page === 'Dashboard' ? 'Safety overview' : page}</h1>
+            </div>
+          </div>
+
+          <div className="top-actions">
+            <span
+              className={`live-pill ${status?.deviceOnline ? 'live' : ''}`}
+            >
+              <span
+                className={`status-dot ${status?.deviceOnline ? 'green' : 'red'
+                  }`}
+              />
+              {status?.deviceOnline ? 'DEVICE ONLINE' : 'DEVICE OFFLINE'}
+            </span>
+
+            <button
+              className="icon-button"
+              aria-label="Open alerts"
+              onClick={() => setPage('Alerts')}
+            >
+              <Bell size={18} />
+              {activeAlerts.length > 0 && <i />}
+            </button>
+
+            <button
+              className="secondary-button elderly-shortcut"
+              onClick={() => setElderlyView(true)}
+            >
+              <UserRound size={16} /> Elderly view
+            </button>
+          </div>
+        </header>
+
+        <div className="page-content">
+          {error && (
+            <div className="error-banner">
+              <WifiOff size={19} />
+
+              <div>
+                <b>Backend connection unavailable</b>
+                <p>
+                  {error}. Start the Node.js server and check its environment
+                  configuration. Live values are not being fabricated.
+                </p>
+              </div>
+
+              <button
+                className="secondary-button"
+                onClick={() => void refresh(true)}
+              >
+                <RefreshCw size={15} /> Retry
+              </button>
+            </div>
+          )}
+
+          {page === 'Dashboard' && (
+            <>
+              <div className="welcome-row">
+                <p className="muted">
+                  Live system state from your backend, database, and configured
+                  device.
+                </p>
+
+                <button
+                  className="secondary-button"
+                  onClick={() => void refresh(true)}
+                >
+                  <RefreshCw size={15} /> Refresh
+                </button>
+              </div>
+
+              <div className="status-banner">
+                <div className="banner-icon">
+                  <Database size={19} />
+                </div>
+
+                <div>
+                  <b>
+                    {status?.supabaseConfigured
+                      ? 'Database configuration detected'
+                      : 'Database setup required'}
+                  </b>
+
+                  <p>
+                    {status?.supabaseConfigured
+                      ? 'The backend has Supabase credentials configured. Connection and query health are reflected by API responses.'
+                      : 'Add your Supabase URL and service-role key to server/.env. Until then, database-backed readings and alerts cannot load.'}
+                  </p>
+                </div>
+
+                <span className="banner-tag">REAL DATA ONLY</span>
+              </div>
+
+              <section className="stats-grid">
+                <Stat
+                  icon={<Wifi size={18} />}
+                  label="Device connection"
+                  value={
+                    loading
+                      ? 'Checking…'
+                      : status?.deviceOnline
+                        ? 'Online'
+                        : 'Offline'
+                  }
+                  foot={
+                    status?.lastMessageAt
+                      ? `Last message: ${time(status.lastMessageAt)}`
+                      : 'No device message received'
+                  }
+                  tone={status?.deviceOnline ? 'green' : 'orange'}
+                />
+
+                <Stat
+                  icon={<ShieldCheck size={18} />}
+                  label="Safety events"
+                  value={activeAlerts.length.toString().padStart(2, '0')}
+                  foot={`${alerts.length} total events stored`}
+                  tone={activeAlerts.length ? 'orange' : 'green'}
+                />
+
+                <Stat
+                  icon={<Activity size={18} />}
+                  label="Stored readings"
+                  value={readings.length.toString()}
+                  foot={
+                    latestReading
+                      ? `Latest: ${time(latestReading.occurred_at)}`
+                      : 'No sensor readings in database'
+                  }
+                  tone="blue"
+                />
+
+                {/* Updated MQTT broker status text */}
+                <Stat
+                  icon={<Radio size={18} />}
+                  label="MQTT broker"
+                  value={
+                    status?.mqttConnected ? 'Connected' : 'Disconnected'
+                  }
+                  foot={
+                    status?.mqttConnected
+                      ? 'Connected to HiveMQ broker'
+                      : status?.mqttConfigured
+                        ? 'Configured; reconnecting…'
+                        : 'MQTT_URL not configured'
+                  }
+                  tone={status?.mqttConnected ? 'green' : 'orange'}
+                />
+              </section>
+
+              <div className="section-heading">
+                <div>
+                  <h2>Motion readings</h2>
+                  <p>
+                    Sensor values retrieved from the backend API and database
+                  </p>
+                </div>
+
+                <span className="sample-label">
+                  <span
+                    className={`status-dot ${latestReading ? 'green' : 'red'
+                      }`}
+                  />
+                  {latestReading
+                    ? latestReading.source === 'test'
+                      ? 'Test message'
+                      : 'Database data'
+                    : 'No data yet'}
+                </span>
+              </div>
+
+              <section className="content-grid">
+                <article className="panel chart-panel">
+                  <div className="panel-head">
+                    <div>
+                      <h3>Acceleration magnitude</h3>
+                      <p>
+                        Calculated from ax, ay, az · g if firmware reports g
+                        units
+                      </p>
+                    </div>
+
+                    <span className="live-pill">
+                      {readings.length} points
+                    </span>
+                  </div>
+
+                  {chartData.some((d) => d.acceleration !== null) ? (
+                    <div className="chart-wrap">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart
+                          data={chartData}
+                          margin={{
+                            top: 12,
+                            right: 8,
+                            left: -18,
+                            bottom: 0,
+                          }}
+                        >
+                          <defs>
+                            <linearGradient
+                              id="motionFill"
+                              x1="0"
+                              y1="0"
+                              x2="0"
+                              y2="1"
+                            >
+                              <stop
+                                offset="0%"
+                                stopColor="#239b8e"
+                                stopOpacity={0.23}
+                              />
+                              <stop
+                                offset="95%"
+                                stopColor="#239b8e"
+                                stopOpacity={0.015}
+                              />
+                            </linearGradient>
+                          </defs>
+
+                          <CartesianGrid
+                            strokeDasharray="3 5"
+                            vertical={false}
+                            stroke="#e8eef0"
+                          />
+
+                          <XAxis
+                            dataKey="time"
+                            tickLine={false}
+                            axisLine={false}
+                            minTickGap={24}
+                          />
+
+                          <YAxis tickLine={false} axisLine={false} />
+                          <Tooltip />
+
+                          <Area
+                            dataKey="acceleration"
+                            name="Acceleration magnitude"
+                            stroke="#239b8e"
+                            fill="url(#motionFill)"
+                            strokeWidth={2.5}
+                            connectNulls={false}
+                          />
+                        </AreaChart>
+                      </ResponsiveContainer>
+                    </div>
+                  ) : (
+                    <Empty text="No acceleration readings have been received. When the backend stores MPU6050 values, the chart will populate automatically." />
+                  )}
+                </article>
+
+                <article className="panel alerts-panel">
+                  <div className="panel-head">
+                    <div>
+                      <h3>Active alerts</h3>
+                      <p>Events received from the backend</p>
+                    </div>
+
+                    <button
+                      className="text-link"
+                      onClick={() => setPage('Alerts')}
+                    >
+                      View all
+                    </button>
+                  </div>
+
+                  {activeAlerts.length ? (
+                    <EventList
+                      events={activeAlerts.slice(0, 4)}
+                      onAcknowledge={(id) =>
+                        void updateAlert(id, 'acknowledged')
+                      }
+                      onResolve={setConfirmResolve}
+                      busy={busy}
+                    />
+                  ) : (
+                    <Empty text="No active alerts stored in the database." />
+                  )}
+                </article>
+              </section>
+
+              <section className="panel recent-panel">
+                <div className="panel-head">
+                  <div>
+                    <h3>Latest sensor message</h3>
+                    <p>Most recent row returned from Supabase</p>
+                  </div>
+
+                  <button
+                    className="text-link"
+                    onClick={() => setPage('Live Monitoring')}
+                  >
+                    View monitoring
+                  </button>
+                </div>
+
+                {latestReading ? (
+                  <ReadingDetails reading={latestReading} />
+                ) : (
+                  <Empty text="Waiting for a real device message. No placeholder readings are shown." />
+                )}
+              </section>
+            </>
+          )}
+
+          {page === 'Alerts' && (
+            <>
+              <div className="page-intro">
+                <p>
+                  Acknowledge or resolve stored events. Only events received by
+                  the backend appear here.
+                </p>
+
+                <button
+                  className="secondary-button"
+                  onClick={() => void refresh(true)}
+                >
+                  <RefreshCw size={15} /> Refresh events
+                </button>
+              </div>
+
+              <div className="filter-row">
+                <span>{filteredAlerts.length} events</span>
+
+                <select
+                  value={filter}
+                  onChange={(e) => setFilter(e.target.value)}
+                >
+                  <option value="all">All events</option>
+                  <option value="active">Unresolved only</option>
+                  <option value="possible_fall">Possible fall</option>
+                  <option value="manual_help">Manual help</option>
+                  <option value="check_in">Check-in</option>
+                </select>
+              </div>
+
+              <section className="panel">
+                <EventList
+                  events={filteredAlerts}
+                  onAcknowledge={(id) =>
+                    void updateAlert(id, 'acknowledged')
+                  }
+                  onResolve={setConfirmResolve}
+                  busy={busy}
+                />
+
+                {!filteredAlerts.length && (
+                  <Empty text="No matching events exist in the database." />
+                )}
+              </section>
+            </>
+          )}
+
+          {page === 'Live Monitoring' && (
+            <>
+              <div className="page-intro">
+                <p>
+                  Live sensor stream is updated from the backend event stream
+                  and periodic API polling.
+                </p>
+
+                <span
+                  className={`live-pill ${status?.mqttConnected ? 'live' : ''
+                    }`}
+                >
+                  {status?.mqttConnected
+                    ? 'MQTT CONNECTED'
+                    : 'MQTT DISCONNECTED'}
+                </span>
+              </div>
+
+              <section className="panel chart-panel full-chart">
+                <div className="panel-head">
+                  <div>
+                    <h3>Acceleration magnitude</h3>
+                    <p>Calculated from real stored sensor axes</p>
+                  </div>
+
+                  <span className="sample-label">
+                    {chartData.length} readings
+                  </span>
+                </div>
+
+                {chartData.some((d) => d.acceleration !== null) ? (
+                  <div className="large-chart">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={chartData}>
+                        <CartesianGrid
+                          strokeDasharray="3 5"
+                          vertical={false}
+                        />
+                        <XAxis
+                          dataKey="time"
+                          tickLine={false}
+                          axisLine={false}
+                        />
+                        <YAxis tickLine={false} axisLine={false} />
+                        <Tooltip />
+                        <Area
+                          dataKey="acceleration"
+                          stroke="#239b8e"
+                          fill="#239b8e22"
+                          strokeWidth={2.5}
+                          connectNulls={false}
+                        />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </div>
+                ) : (
+                  <Empty text="No readings yet. Publish a real sensor payload to the configured MQTT topic after the backend and database are configured." />
+                )}
+              </section>
+
+              <div className="stats-grid two-stats">
+                <ReadingStat
+                  label="Acceleration axes"
+                  values={
+                    latestReading
+                      ? [
+                        latestReading.ax,
+                        latestReading.ay,
+                        latestReading.az,
+                      ]
+                      : null
+                  }
+                  unit="sensor units"
+                />
+
+                <ReadingStat
+                  label="Gyroscope axes"
+                  values={
+                    latestReading
+                      ? [
+                        latestReading.gx,
+                        latestReading.gy,
+                        latestReading.gz,
+                      ]
+                      : null
+                  }
+                  unit="sensor units"
+                />
+              </div>
+
+              <section className="panel">
+                <div className="panel-head">
+                  <div>
+                    <h3>Recent readings</h3>
+                    <p>Latest database rows</p>
+                  </div>
+                </div>
+
+                <div className="table-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Timestamp</th>
+                        <th>Device</th>
+                        <th>ax</th>
+                        <th>ay</th>
+                        <th>az</th>
+                        <th>Source</th>
+                      </tr>
+                    </thead>
+
+                    <tbody>
+                      {[...readings]
+                        .reverse()
+                        .slice(0, 10)
+                        .map((r) => (
+                          <tr key={r.id}>
+                            <td>{time(r.occurred_at)}</td>
+                            <td>{r.device_id}</td>
+                            <td>{r.ax ?? '—'}</td>
+                            <td>{r.ay ?? '—'}</td>
+                            <td>{r.az ?? '—'}</td>
+                            <td>
+                              <span className={`source-tag ${r.source}`}>
+                                {r.source}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+
+                  {!readings.length && (
+                    <Empty text="No readings have been stored yet." />
+                  )}
+                </div>
+              </section>
+            </>
+          )}
+
+          {page === 'Activity History' && (
+            <>
+              <div className="page-intro">
+                <p>
+                  Chronological history of events persisted by the backend.
+                </p>
+
+                <button
+                  className="secondary-button"
+                  onClick={() => void refresh(true)}
+                >
+                  <RefreshCw size={15} /> Refresh history
+                </button>
+              </div>
+
+              <section className="panel">
+                <EventList
+                  events={alerts}
+                  onAcknowledge={(id) =>
+                    void updateAlert(id, 'acknowledged')
+                  }
+                  onResolve={setConfirmResolve}
+                  busy={busy}
+                />
+
+                {!alerts.length && (
+                  <Empty text="No events have been recorded yet." />
+                )}
+              </section>
+            </>
+          )}
+
+          {page === 'Settings' && (
+            <>
+              <div className="page-intro">
+                <p>
+                  Backend configuration status. Secrets are intentionally not
+                  displayed in the browser.
+                </p>
+              </div>
+
+              <section className="settings-grid">
+                <article className="panel settings-card">
+                  <div className="settings-heading">
+                    <span className="settings-icon">
+                      <Smartphone />
+                    </span>
+
+                    <div>
+                      <h3>Device connection</h3>
+                      <p>Configured by backend environment variables</p>
+                    </div>
+                  </div>
+
+                  <Setting
+                    label="Device ID"
+                    value={status?.deviceId || 'Not available'}
+                  />
+                  <Setting label="MQTT topic" value="elderly/fall/test" />
+                  <Setting
+                    label="MQTT connection"
+                    value={
+                      status?.mqttConnected ? 'Connected' : 'Disconnected'
+                    }
+                  />
+                  <Setting
+                    label="Last device message"
+                    value={time(status?.lastMessageAt)}
+                  />
+                  <Setting
+                    label="Offline threshold"
+                    value={`${status?.offlineAfterSeconds ?? 45} seconds`}
+                  />
+                </article>
+
+                <article className="panel settings-card">
+                  <div className="settings-heading">
+                    <span className="settings-icon">
+                      <Database />
+                    </span>
+
+                    <div>
+                      <h3>Backend services</h3>
+                      <p>Health and integration readiness</p>
+                    </div>
+                  </div>
+
+                  <Setting
+                    label="Node.js API"
+                    value={error ? 'Unavailable' : 'Reachable'}
+                  />
+                  <Setting
+                    label="Supabase credentials"
+                    value={
+                      status?.supabaseConfigured ? 'Configured' : 'Missing'
+                    }
+                  />
+                  <Setting
+                    label="Sensor data mode"
+                    value="Real backend data only"
+                  />
+
+                  <div className="settings-note">
+                    <AlertTriangle size={16} />
+                    <span>
+                      Guardian notifications, SMS, phone calls, and emergency
+                      service integrations are not implemented. Alert status
+                      updates are database actions only.
+                    </span>
+                  </div>
+
+                  <button
+                    className="primary-button"
+                    onClick={() => void refresh(true)}
+                  >
+                    <RefreshCw size={15} /> Check connection
+                  </button>
+                </article>
+              </section>
+            </>
+          )}
+
+          <footer className="page-footer">
+            <span>
+              CareWatch · Elderly Fall Detection &amp; Emergency Response System
+            </span>
+
+            <span>
+              <ShieldCheck size={14} /> Educational prototype · Not medically
+              validated
+            </span>
+          </footer>
+        </div>
+      </main>
+
+      {toast && (
+        <div className="toast">
+          <CheckCircle2 size={18} />
+          {toast}
+          <button onClick={() => setToast('')} aria-label="Dismiss notification">
+            <X size={15} />
+          </button>
+        </div>
+      )}
+
+      {confirmResolve && (
+        <div className="modal-backdrop">
+          <div
+            className="confirm-modal"
+            role="dialog"
+            aria-modal="true"
+          >
+            <div className="modal-icon">
+              <AlertTriangle size={23} />
+            </div>
+
+            <h2>Resolve this alert?</h2>
+
+            <p>
+              This updates the stored alert status. It does not confirm the
+              person's real-world safety.
+            </p>
+
+            <div className="modal-actions">
+              <button
+                className="secondary-button"
+                onClick={() => setConfirmResolve(null)}
+              >
+                Cancel
+              </button>
+
+              <button
+                className="primary-button"
+                disabled={busy === confirmResolve}
+                onClick={() =>
+                  void updateAlert(confirmResolve, 'resolved')
+                }
+              >
+                Confirm resolution
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
-function Stat({icon,label,value,foot,tone}:{icon:React.ReactNode;label:string;value:string;foot:string;tone:string}) { return <article className="stat-card"><div className="stat-top"><span>{label}</span><span className={`stat-icon pale-${tone}`}>{icon}</span></div><div className="stat-value">{value}</div><div className="stat-foot"><span className={`status-dot ${tone === 'green' ? 'green' : tone === 'blue' ? 'blue' : 'orange'}`}/><span>{foot}</span></div></article>; }
-function Empty({text}:{text:string}) { return <div className="empty-state"><div><Activity size={22}/></div><b>No data available</b><p>{text}</p></div>; }
-function EventList({events,onAcknowledge,onResolve,busy}:{events:AlertItem[];onAcknowledge:(id:string)=>void;onResolve:(id:string)=>void;busy:string|null}) { if (!events.length) return null; return <div className="event-list">{events.map(e=><div className="event-row" key={e.id}><div className={`event-marker ${e.type==='possible_fall'?'marker-alert':e.type==='manual_help'?'marker-help':'marker-normal'}`}>{e.type==='possible_fall'?<AlertTriangle size={16}/>:e.type==='manual_help'?<LifeBuoy size={16}/>:<CheckCircle2 size={16}/>}</div><div className="event-copy"><div className="event-name">{e.type.replaceAll('_',' ')}<span className={`source-tag ${e.source}`}>{e.source==='test'?'Test event':'Device event'}</span></div><p>{e.message || 'No event details supplied.'}</p><span className="event-time"><Clock3 size={12}/>{time(e.occurred_at)} · {e.device_id}</span></div><span className={`event-status ${e.status}`}>{e.status}</span>{e.status!=='resolved'&&<div className="event-buttons">{e.status==='active'&&<button className="tiny-action" disabled={busy===e.id} onClick={()=>onAcknowledge(e.id)}>Acknowledge</button>}<button className="tiny-action resolve-tiny" disabled={busy===e.id} onClick={()=>onResolve(e.id)}>Resolve</button></div>}</div>)}</div>; }
-function ReadingDetails({reading}:{reading:Reading}) { return <div className="reading-details"><div><span>Device ID</span><b>{reading.device_id}</b></div><div><span>Timestamp</span><b>{time(reading.occurred_at)}</b></div><div><span>Acceleration (x, y, z)</span><b>{[reading.ax,reading.ay,reading.az].map(v=>v ?? '—').join(', ')}</b></div><div><span>Gyroscope (x, y, z)</span><b>{[reading.gx,reading.gy,reading.gz].map(v=>v ?? '—').join(', ')}</b></div><div><span>Message source</span><b>{reading.source==='test'?'Test message':'Device message'}</b></div></div>; }
-function ReadingStat({label,values,unit}:{label:string;values:(number|null)[]|null;unit:string}) { return <article className="stat-card"><div className="stat-top"><span>{label}</span><Activity size={18}/></div><div className="axis-values">{values ? values.map((v,i)=><span key={i}><small>{['X','Y','Z'][i]}</small>{v ?? '—'}</span>) : <span>No data</span>}</div><div className="stat-foot">{unit}; values come from the latest stored reading.</div></article>; }
-function Setting({label,value}:{label:string;value:string}) { return <div className="setting-row"><div><b>{label}</b></div><strong>{value}</strong></div>; }
+
+function Stat({
+  icon,
+  label,
+  value,
+  foot,
+  tone,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  foot: string;
+  tone: string;
+}) {
+  return (
+    <article className="stat-card">
+      <div className="stat-top">
+        <span>{label}</span>
+        <span className={`stat-icon pale-${tone}`}>{icon}</span>
+      </div>
+
+      <div className="stat-value">{value}</div>
+
+      <div className="stat-foot">
+        <span
+          className={`status-dot ${tone === 'green' ? 'green' : tone === 'blue' ? 'blue' : 'orange'
+            }`}
+        />
+        <span>{foot}</span>
+      </div>
+    </article>
+  );
+}
+
+function Empty({ text }: { text: string }) {
+  return (
+    <div className="empty-state">
+      <div>
+        <Activity size={22} />
+      </div>
+      <b>No data available</b>
+      <p>{text}</p>
+    </div>
+  );
+}
+
+function EventList({
+  events,
+  onAcknowledge,
+  onResolve,
+  busy,
+}: {
+  events: AlertItem[];
+  onAcknowledge: (id: string) => void;
+  onResolve: (id: string) => void;
+  busy: string | null;
+}) {
+  if (!events.length) return null;
+
+  return (
+    <div className="event-list">
+      {events.map((e) => (
+        <div className="event-row" key={e.id}>
+          <div
+            className={`event-marker ${e.type === 'possible_fall'
+                ? 'marker-alert'
+                : e.type === 'manual_help'
+                  ? 'marker-help'
+                  : 'marker-normal'
+              }`}
+          >
+            {e.type === 'possible_fall' ? (
+              <AlertTriangle size={16} />
+            ) : e.type === 'manual_help' ? (
+              <LifeBuoy size={16} />
+            ) : (
+              <CheckCircle2 size={16} />
+            )}
+          </div>
+
+          <div className="event-copy">
+            <div className="event-name">
+              {e.type.replaceAll('_', ' ')}
+              <span className={`source-tag ${e.source}`}>
+                {e.source === 'test' ? 'Test event' : 'Device event'}
+              </span>
+            </div>
+
+            <p>{e.message || 'No event details supplied.'}</p>
+
+            <span className="event-time">
+              <Clock3 size={12} /> {time(e.occurred_at)} · {e.device_id}
+            </span>
+          </div>
+
+          <span className={`event-status ${e.status}`}>{e.status}</span>
+
+          {e.status !== 'resolved' && (
+            <div className="event-buttons">
+              {e.status === 'active' && (
+                <button
+                  className="tiny-action"
+                  disabled={busy === e.id}
+                  onClick={() => onAcknowledge(e.id)}
+                >
+                  Acknowledge
+                </button>
+              )}
+
+              <button
+                className="tiny-action resolve-tiny"
+                disabled={busy === e.id}
+                onClick={() => onResolve(e.id)}
+              >
+                Resolve
+              </button>
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ReadingDetails({ reading }: { reading: Reading }) {
+  return (
+    <div className="reading-details">
+      <div>
+        <span>Device ID</span>
+        <b>{reading.device_id}</b>
+      </div>
+
+      <div>
+        <span>Timestamp</span>
+        <b>{time(reading.occurred_at)}</b>
+      </div>
+
+      <div>
+        <span>Acceleration (x, y, z)</span>
+        <b>
+          {[reading.ax, reading.ay, reading.az]
+            .map((v) => v ?? '—')
+            .join(', ')}
+        </b>
+      </div>
+
+      <div>
+        <span>Gyroscope (x, y, z)</span>
+        <b>
+          {[reading.gx, reading.gy, reading.gz]
+            .map((v) => v ?? '—')
+            .join(', ')}
+        </b>
+      </div>
+
+      <div>
+        <span>Message source</span>
+        <b>
+          {reading.source === 'test' ? 'Test message' : 'Device message'}
+        </b>
+      </div>
+    </div>
+  );
+}
+
+function ReadingStat({
+  label,
+  values,
+  unit,
+}: {
+  label: string;
+  values: (number | null)[] | null;
+  unit: string;
+}) {
+  return (
+    <article className="stat-card">
+      <div className="stat-top">
+        <span>{label}</span>
+        <Activity size={18} />
+      </div>
+
+      <div className="axis-values">
+        {values ? (
+          values.map((v, i) => (
+            <span key={i}>
+              <small>{['X', 'Y', 'Z'][i]}</small>
+              {v ?? '—'}
+            </span>
+          ))
+        ) : (
+          <span>No data</span>
+        )}
+      </div>
+
+      <div className="stat-foot">
+        {unit}; values come from the latest stored reading.
+      </div>
+    </article>
+  );
+}
+
+function Setting({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="setting-row">
+      <div>
+        <b>{label}</b>
+      </div>
+      <strong>{value}</strong>
+    </div>
+  );
+}
