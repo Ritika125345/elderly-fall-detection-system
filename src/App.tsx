@@ -1192,10 +1192,10 @@ function EventList({
         <div className="event-row" key={e.id}>
           <div
             className={`event-marker ${e.type === 'possible_fall'
-                ? 'marker-alert'
-                : e.type === 'manual_help'
-                  ? 'marker-help'
-                  : 'marker-normal'
+              ? 'marker-alert'
+              : e.type === 'manual_help'
+                ? 'marker-help'
+                : 'marker-normal'
               }`}
           >
             {e.type === 'possible_fall' ? (
@@ -1209,7 +1209,13 @@ function EventList({
 
           <div className="event-copy">
             <div className="event-name">
-              {e.type.replaceAll('_', ' ')}
+              {e.type === 'check_in'
+                ? "I'm OK"
+                : e.type === 'manual_help'
+                  ? 'Help Requested'
+                  : e.type === 'possible_fall'
+                    ? 'Possible Fall'
+                    : e.type.replaceAll('_', ' ')}
               <span className={`source-tag ${e.source}`}>
                 {e.source === 'test' ? 'Test event' : 'Device event'}
               </span>
